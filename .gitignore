@@ -1,0 +1,12 @@
+# .NET Core / Windows Forms
+bin/
+obj/
+Output/
+*.user
+*.suo
+*.ide
+*.vs/
+*.dll
+*.pdb
+*.cache
+*.exe
