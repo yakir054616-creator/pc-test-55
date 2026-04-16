@@ -8,8 +8,11 @@ namespace WinAutomator
     static class Program
     {
         [STAThread]
-        static void Main(string[] args)
+        static async System.Threading.Tasks.Task Main(string[] args)
         {
+            // Run global update check silently before anything else
+            await UpdateManager.CheckAndApplyUpdateAsync();
+
             // Use a mutex to ensure only one instance runs, even if multiple startup triggers (Task, Registry, Startup) fire at once.
             using (var mutex = new System.Threading.Mutex(true, "Global\\WinAutomator_Singleton_7733", out bool createdNew))
             {

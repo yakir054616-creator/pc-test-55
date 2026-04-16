@@ -33,6 +33,7 @@ namespace WinAutomator
         private ComboBox cmbManufacturer;
         private Button btnFullAuto;
         private Button btnSemiAuto;
+        private Button btnBetaToggle;
 
         // === Automation Controls ===
         private Panel automationPanel;
@@ -183,7 +184,7 @@ namespace WinAutomator
 
             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
             RectangleF rect = new RectangleF(0, 48, headerPanel.Width, 30);
-            e.Graphics.DrawString("Built by DrModz", fontCredit, Brushes.Crimson, rect, sfCenter);
+            e.Graphics.DrawString("Built by Yakir Lavi", fontCredit, Brushes.LightGray, rect, sfCenter);
         }
 
         // =====================================================================
@@ -263,6 +264,24 @@ namespace WinAutomator
                 RightToLeft = RightToLeft.Yes
             };
             inputPanel.Controls.Add(chkSkipHostname);
+            
+            // --- Beta Toggle Button ---
+            btnBetaToggle = new Button
+            {
+                Text = $"ערוץ עדכונים: {AppConfig.Current.Updates.UpdateChannel}",
+                Location = new Point(120, 295),
+                Size = new Size(200, 24),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(45, 45, 48),
+                ForeColor = Color.LightGray,
+                Font = new Font("Segoe UI", 9, FontStyle.Regular),
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            btnBetaToggle.FlatAppearance.BorderSize = 1;
+            btnBetaToggle.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70);
+            btnBetaToggle.Click += (_, _) => ToggleUpdateChannel();
+            inputPanel.Controls.Add(btnBetaToggle);
 
             // --- Action Buttons ---
             btnFullAuto = CreateActionButton("אוטומציה מלאה", Color.FromArgb(32, 160, 100),
@@ -276,6 +295,29 @@ namespace WinAutomator
             inputPanel.Controls.Add(btnSemiAuto);
 
             this.Controls.Add(inputPanel);
+        }
+
+        private void ToggleUpdateChannel()
+        {
+            var config = AppConfig.Current;
+            if (config.Updates.UpdateChannel == "Stable")
+                config.Updates.UpdateChannel = "Beta";
+            else
+                config.Updates.UpdateChannel = "Stable";
+
+            config.Save();
+            btnBetaToggle.Text = $"ערוץ עדכונים: {config.Updates.UpdateChannel}";
+            
+            if (config.Updates.UpdateChannel == "Beta")
+            {
+                btnBetaToggle.ForeColor = Color.FromArgb(255, 120, 0); // Orange for Beta
+                AppendLog("החלפת ערוץ עדכונים ל-Beta. התוכנה תוריד מעתה גרסאות ניסיונית.");
+            }
+            else
+            {
+                btnBetaToggle.ForeColor = Color.LightGray;
+                AppendLog("החלפת ערוץ עדכונים ל-Stable.");
+            }
         }
 
         private static TextBox CreateTextBox(Font f) => new TextBox

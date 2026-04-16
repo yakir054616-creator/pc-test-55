@@ -18,6 +18,7 @@ namespace WinAutomator
         public TimeoutConfig Timeouts { get; set; } = new();
         public OemConfig Oem { get; set; } = new();
         public CleanupConfig Cleanup { get; set; } = new();
+        public UpdateConfig Updates { get; set; } = new();
         public string LogFolderName { get; set; } = "WinAutomator_Logs";
         public string[] Manufacturers { get; set; } = { "Lenovo", "Dell", "HP" };
 
@@ -80,6 +81,27 @@ namespace WinAutomator
             catch { /* Fall through to defaults */ }
 
             return new AppConfig(); // All defaults
+        }
+
+        public void Save()
+        {
+            try
+            {
+                string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
+                string path = Path.Combine(exeDir ?? AppContext.BaseDirectory, "appsettings.json");
+                
+                var options = new JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    PropertyNameCaseInsensitive = true
+                };
+                string json = JsonSerializer.Serialize(this, options);
+                File.WriteAllText(path, json);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save config: {ex.Message}");
+            }
         }
     }
 
@@ -151,5 +173,12 @@ namespace WinAutomator
                 resolved[i] = Environment.ExpandEnvironmentVariables(TempPaths[i]);
             return resolved;
         }
+    }
+    public class UpdateConfig
+    {
+        public bool AutoUpdateEnabled { get; set; } = true;
+        public string UpdateChannel { get; set; } = "Stable"; // "Stable" or "Beta"
+        public string GitHubRepoOwner { get; set; } = "yakir054616-creator";
+        public string GitHubRepoName { get; set; } = "pc-test-55";
     }
 }
