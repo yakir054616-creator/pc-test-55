@@ -31,6 +31,7 @@ namespace WinAutomator
                 string cpu = "";
                 bool isFullAuto = true;
                 bool skipHostname = false;
+                string manufacturer = "";
                 
                 if (args.Length > 0 && args[0].ToLower() == "--resume")
                 {
@@ -49,12 +50,24 @@ namespace WinAutomator
                                 int.TryParse(parts[3], out currentPhase);
                                 cpu = parts[4];
                                 if (parts.Length >= 6) bool.TryParse(parts[5], out skipHostname);
+                                if (parts.Length >= 7) manufacturer = parts[6];
                             }
                         } catch { currentPhase = 1; }
                     }
                 }
+                else 
+                {
+                    // Startup warning - only show on fresh launch (not after a reboot/resume)
+                    MessageBox.Show(
+                        "שים לב!\nהתוכנה לא מהווה תחליף לעדכוני וינדוס או יצרן, חובה לעשות אותם בנוסף!!",
+                        "הוראות שימוש", 
+                        MessageBoxButtons.OK, 
+                        MessageBoxIcon.Warning, 
+                        MessageBoxDefaultButton.Button1, 
+                        MessageBoxOptions.RightAlign | MessageBoxOptions.RtlReading);
+                }
 
-                Application.Run(new MainForm(currentPhase, tech, serial, cpu, isFullAuto, skipHostname));
+                Application.Run(new MainForm(currentPhase, tech, serial, cpu, isFullAuto, skipHostname, manufacturer));
             }
         }
 

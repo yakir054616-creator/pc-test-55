@@ -10,3 +10,11 @@ Output/
 *.pdb
 *.cache
 *.exe
+
+# OS specific
+.DS_Store
+
+# Build and logs
+build_log.txt
+WinAutomator/Publish/
+

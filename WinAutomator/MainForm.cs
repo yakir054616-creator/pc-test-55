@@ -5,131 +5,125 @@ using System.Drawing;
 using System.Drawing.Text;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using WinAutomator.Phases;
 
 namespace WinAutomator
 {
     public class MainForm : Form
     {
-        private int currentPhase;
-        private string techName;
-        private string serialNum;
-        private string cpuGen;
-        private bool skipHostname;
-        private bool isFullAuto;
+        // === P/Invoke for Draggable Borderless Window ===
+        public const int WM_NCLBUTTONDOWN = 0xA1;
+        public const int HT_CAPTION = 0x2;
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
 
-        // UI Controls
+        // === Context & State ===
+        private int currentPhase;
+        private readonly AutomationContext context;
+        private IAutomationPhase[] allPhases;
+
+        // === Input Controls ===
+        private Panel inputPanel;
         private TextBox txtTech;
         private TextBox txtSerial;
         private TextBox txtCpu;
         private CheckBox chkSkipHostname;
+        private ComboBox cmbManufacturer;
         private Button btnFullAuto;
         private Button btnSemiAuto;
-        private ProgressBar progressBar;
-        private Label lblStatus;
-        private Panel headerPanel;
 
-        // === NEW: Timer System ===
+        // === Automation Controls ===
+        private Panel automationPanel;
+        private StepperControl stepperControl;
+        private Label lblStatus;
+        private Label lblManInfo;
+
+        // === Timer System ===
         private Stopwatch processStopwatch;
         private System.Windows.Forms.Timer elapsedTimer;
         private Label lblTimer;
 
-        // === NEW: Detailed Log System ===
+        // === Log System ===
         private RichTextBox rtbLog;
         private Panel logPanel;
-        private List<string> logEntries = new List<string>();
+        private readonly List<string> logEntries = new();
 
-        public MainForm(int phase, string tech, string serial, string cpu, bool isFullAutoCfg, bool skipHostnameCfg = false)
+        // === Shared UI ===
+        private Panel headerPanel;
+
+        // =====================================================================
+        //  CONSTRUCTOR
+        // =====================================================================
+
+        public MainForm(int phase, string tech, string serial, string cpu,
+            bool isFullAutoCfg, bool skipHostnameCfg = false, string manufacturer = "")
         {
             this.currentPhase = phase;
-            this.techName = tech;
-            this.serialNum = serial;
-            this.cpuGen = cpu;
-            this.isFullAuto = isFullAutoCfg;
-            this.skipHostname = skipHostnameCfg;
 
-            InitializeDarkUI();
-            InitializeTimerUI();
-            InitializeLogPanel();
-
-            if (currentPhase == 1 && string.IsNullOrEmpty(this.techName))
+            context = new AutomationContext
             {
-                // First time fresh start!
-                ShowInputFields();
+                TechName = tech,
+                SerialNum = serial,
+                CpuGen = cpu,
+                IsFullAuto = isFullAutoCfg,
+                SkipHostname = skipHostnameCfg,
+                SelectedManufacturer = manufacturer
+            };
+
+            allPhases = new IAutomationPhase[]
+            {
+                new Phase1_DiskRepair(),
+                new Phase2_Updates(),
+                new Phase3_QA()
+            };
+
+            InitializeForm();
+            InitializeHeader();
+            InitializeInputScreen();
+            InitializeAutomationScreen();
+
+            if (currentPhase == 1 && string.IsNullOrEmpty(context.TechName))
+            {
+                ShowInputScreen();
             }
             else
             {
-                // Resuming from Restart! (Or looping phase 1)
-                LockUIForAutomation();
+                ShowAutomationScreen();
                 StartGlobalTimer();
-                
-                if (currentPhase == 1) ExecutePhase1();
-                else if (currentPhase == 2) ExecutePhase2();
-                else if (currentPhase == 3) ExecutePhase3();
+                RunCurrentPhase();
             }
         }
 
-        private void InitializeDarkUI()
+        // =====================================================================
+        //  FORM & HEADER INIT
+        // =====================================================================
+
+        private void InitializeForm()
         {
-            this.Text = "WinAutomator - 8.0";
-            this.Size = new Size(550, 680);
+            this.Text = "Project Aura - Windows Automator";
+            this.Size = new Size(550, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
-            this.BackColor = Color.FromArgb(30, 30, 30);
+            this.BackColor = Color.FromArgb(28, 28, 28);
             this.ForeColor = Color.White;
-            this.RightToLeft = RightToLeft.Yes;
-            this.RightToLeftLayout = true;
+            this.RightToLeft = RightToLeft.No;
+            this.RightToLeftLayout = false;
+            this.AutoScaleMode = AutoScaleMode.Dpi;
 
-            // Custom Glowing Header
-            headerPanel = new Panel() { Dock = DockStyle.Top, Height = 90, BackColor = Color.FromArgb(20, 20, 20) };
-            headerPanel.Paint += HeaderPanel_Paint;
-            this.Controls.Add(headerPanel);
-
-            // Status Label (Real-time feedback)
-            lblStatus = new Label() { 
-                Text = "ממתין לפקודה...", 
-                Location = new Point(10, 270), 
-                Width = 510, 
-                Height = 25,
-                TextAlign = ContentAlignment.TopCenter, 
-                AutoSize = false, 
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = Color.Cyan
-            };
-
-            // Progress Bar (Prominent Cyan)
-            progressBar = new ProgressBar() { 
-                Location = new Point(40, 305),
-                Width = 450, 
-                Height = 35, // Larger bar
-                Visible = false 
-            };
-
-            this.Controls.Add(progressBar);
-            this.Controls.Add(lblStatus);
-        }
-
-        // === NEW: Timer UI Initialization ===
-        private void InitializeTimerUI()
-        {
-            processStopwatch = new Stopwatch();
-            
-            lblTimer = new Label()
+            // 1px border
+            this.Paint += (_, e) =>
             {
-                Text = "⏱ 00:00:00",
-                Location = new Point(40, 345), // Moved to align with toggle button
-                Width = 200,
-                Height = 30,
-                Font = new Font("Consolas", 14, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 200, 255),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Visible = false,
-                RightToLeft = RightToLeft.No
+                using var p = new Pen(Color.FromArgb(50, 50, 50), 2);
+                e.Graphics.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
             };
-            this.Controls.Add(lblTimer);
 
-            elapsedTimer = new System.Windows.Forms.Timer() { Interval = 1000 };
-            elapsedTimer.Tick += (s, e) =>
+            // Timer infrastructure
+            processStopwatch = new Stopwatch();
+            elapsedTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            elapsedTimer.Tick += (_, _) =>
             {
                 if (processStopwatch.IsRunning)
                 {
@@ -139,10 +133,460 @@ namespace WinAutomator
             };
         }
 
+        private void InitializeHeader()
+        {
+            headerPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 80,
+                BackColor = Color.FromArgb(20, 20, 20),
+                Cursor = Cursors.Default
+            };
+            headerPanel.Paint += HeaderPanel_Paint;
+            headerPanel.MouseDown += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Left)
+                {
+                    ReleaseCapture();
+                    SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+                }
+            };
+
+            var lblClose = new Label
+            {
+                Text = "✕",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                Location = new Point(510, 10),
+                AutoSize = true,
+                ForeColor = Color.DarkGray,
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent
+            };
+            lblClose.MouseEnter += (_, _) => lblClose.ForeColor = Color.LightCoral;
+            lblClose.MouseLeave += (_, _) => lblClose.ForeColor = Color.DarkGray;
+            lblClose.Click += (_, _) => Application.Exit();
+            headerPanel.Controls.Add(lblClose);
+            this.Controls.Add(headerPanel);
+        }
+
+        private void HeaderPanel_Paint(object sender, PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            using Font fontTitle = new Font("Segoe UI", 20, FontStyle.Bold);
+            using Font fontCredit = new Font("Segoe UI", 13, FontStyle.Regular);
+
+            SizeF titleSize = e.Graphics.MeasureString("Project Aura", fontTitle);
+            float titleX = (headerPanel.Width - titleSize.Width) / 2f;
+            e.Graphics.DrawString("Project Aura", fontTitle, Brushes.Cyan, new PointF(titleX, 8));
+
+            StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
+            RectangleF rect = new RectangleF(0, 48, headerPanel.Width, 30);
+            e.Graphics.DrawString("Built by Yakir Lavi", fontCredit, Brushes.LightGray, rect, sfCenter);
+        }
+
+        // =====================================================================
+        //  INPUT SCREEN (DPI-Responsive with TableLayoutPanel)
+        // =====================================================================
+
+        private void InitializeInputScreen()
+        {
+            inputPanel = new Panel
+            {
+                Location = new Point(0, 80),
+                Size = new Size(550, 620),
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+
+            Font fLabel = new Font("Segoe UI", 11, FontStyle.Bold);
+            Font fBox = new Font("Segoe UI", 11);
+
+            // --- TableLayoutPanel for input fields ---
+            var table = new TableLayoutPanel
+            {
+                Location = new Point(30, 40),
+                Size = new Size(490, 220),
+                ColumnCount = 2,
+                RowCount = 4,
+                BackColor = Color.Transparent,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.None
+            };
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            for (int i = 0; i < 4; i++)
+                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+
+            // Row 0: Tech Name
+            txtTech = CreateTextBox(fBox);
+            table.Controls.Add(txtTech, 0, 0);
+            table.Controls.Add(CreateLabel("שם הטכנאי:", fLabel), 1, 0);
+
+            // Row 1: Manufacturer
+            cmbManufacturer = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = fBox,
+                BackColor = Color.FromArgb(40, 40, 42),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Fill,
+                RightToLeft = RightToLeft.No
+            };
+            cmbManufacturer.Items.AddRange(AppConfig.Current.Manufacturers);
+            cmbManufacturer.SelectedIndex = 0;
+            table.Controls.Add(cmbManufacturer, 0, 1);
+            table.Controls.Add(CreateLabel("יצרן מחשב:", fLabel), 1, 1);
+
+            // Row 2: Serial Number
+            txtSerial = CreateTextBox(fBox);
+            table.Controls.Add(txtSerial, 0, 2);
+            table.Controls.Add(CreateLabel("מספר סידורי:", fLabel), 1, 2);
+
+            // Row 3: CPU Generation
+            txtCpu = CreateTextBox(fBox);
+            txtCpu.Text = AutomationLogic.GetCpuGeneration();
+            table.Controls.Add(txtCpu, 0, 3);
+            table.Controls.Add(CreateLabel("דור מעבד:", fLabel), 1, 3);
+
+            inputPanel.Controls.Add(table);
+
+            // --- Skip Hostname Checkbox ---
+            chkSkipHostname = new CheckBox
+            {
+                Text = "דלג על שינוי שם המחשב (מצב בדיקה)",
+                Location = new Point(120, 270),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(255, 170, 0),
+                RightToLeft = RightToLeft.Yes
+            };
+            inputPanel.Controls.Add(chkSkipHostname);
+
+            // --- Action Buttons ---
+            btnFullAuto = CreateActionButton("אוטומציה מלאה", Color.FromArgb(32, 160, 100),
+                Color.FromArgb(40, 190, 120), new Point(270, 320));
+            btnFullAuto.Click += (_, _) => StartFresh(true);
+            inputPanel.Controls.Add(btnFullAuto);
+
+            btnSemiAuto = CreateActionButton("חצי אוטומטי", Color.FromArgb(40, 120, 180),
+                Color.FromArgb(60, 140, 200), new Point(50, 320));
+            btnSemiAuto.Click += (_, _) => StartFresh(false);
+            inputPanel.Controls.Add(btnSemiAuto);
+
+            this.Controls.Add(inputPanel);
+        }
+
+        private static TextBox CreateTextBox(Font f) => new TextBox
+        {
+            Font = f,
+            BackColor = Color.FromArgb(40, 40, 42),
+            ForeColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle,
+            RightToLeft = RightToLeft.No,
+            Dock = DockStyle.Fill
+        };
+
+        private static Label CreateLabel(string text, Font f) => new Label
+        {
+            Text = text,
+            Font = f,
+            AutoSize = true,
+            ForeColor = Color.White,
+            RightToLeft = RightToLeft.Yes,
+            Anchor = AnchorStyles.Right,
+            TextAlign = ContentAlignment.MiddleRight,
+            Padding = new Padding(0, 10, 0, 0)
+        };
+
+        private static Button CreateActionButton(string text, Color bg, Color hoverBg, Point location)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Location = location,
+                Width = 200,
+                Height = 48,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = bg,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (_, _) => btn.BackColor = hoverBg;
+            btn.MouseLeave += (_, _) => btn.BackColor = bg;
+            return btn;
+        }
+
+        // =====================================================================
+        //  AUTOMATION SCREEN (Stepper + Timer + Log)
+        // =====================================================================
+
+        private void InitializeAutomationScreen()
+        {
+            automationPanel = new Panel
+            {
+                Location = new Point(0, 80),
+                Size = new Size(550, 620),
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+
+            // Manufacturer info label
+            lblManInfo = new Label
+            {
+                Location = new Point(10, 5),
+                Size = new Size(510, 22),
+                TextAlign = ContentAlignment.TopCenter,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.Yellow,
+                Visible = false
+            };
+            automationPanel.Controls.Add(lblManInfo);
+
+            // Status label
+            lblStatus = new Label
+            {
+                Text = "ממתין לפקודה...",
+                Location = new Point(10, 28),
+                Size = new Size(510, 22),
+                TextAlign = ContentAlignment.TopCenter,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.Cyan
+            };
+            automationPanel.Controls.Add(lblStatus);
+
+            // Stepper Control (replaces ProgressBar)
+            stepperControl = new StepperControl
+            {
+                Location = new Point(15, 55),
+                Size = new Size(510, 310),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            automationPanel.Controls.Add(stepperControl);
+
+            // Timer
+            lblTimer = new Label
+            {
+                Text = "⏱ 00:00:00",
+                Location = new Point(30, 370),
+                Size = new Size(200, 28),
+                Font = new Font("Consolas", 14, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 200, 255),
+                TextAlign = ContentAlignment.MiddleLeft,
+                RightToLeft = RightToLeft.No
+            };
+            automationPanel.Controls.Add(lblTimer);
+
+            // Log Panel
+            logPanel = new Panel
+            {
+                Location = new Point(15, 402),
+                Size = new Size(510, 200),
+                BackColor = Color.FromArgb(18, 18, 18),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            rtbLog = new RichTextBox
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(18, 18, 18),
+                ForeColor = Color.FromArgb(180, 220, 180),
+                Font = new Font("Consolas", 9),
+                ReadOnly = true,
+                BorderStyle = BorderStyle.None,
+                ScrollBars = RichTextBoxScrollBars.Vertical,
+                RightToLeft = RightToLeft.No,
+                WordWrap = true
+            };
+            logPanel.Controls.Add(rtbLog);
+            automationPanel.Controls.Add(logPanel);
+
+            this.Controls.Add(automationPanel);
+        }
+
+        // =====================================================================
+        //  SCREEN TRANSITIONS
+        // =====================================================================
+
+        private void ShowInputScreen()
+        {
+            inputPanel.Visible = true;
+            automationPanel.Visible = false;
+        }
+
+        private void ShowAutomationScreen()
+        {
+            inputPanel.Visible = false;
+            automationPanel.Visible = true;
+
+            if (!string.IsNullOrEmpty(context.SelectedManufacturer))
+            {
+                lblManInfo.Text = $"יצרן נבחר: {context.SelectedManufacturer}";
+                lblManInfo.Visible = true;
+            }
+        }
+
+        // =====================================================================
+        //  START & PHASE PIPELINE
+        // =====================================================================
+
+        private void StartFresh(bool fullAuto)
+        {
+            if (string.IsNullOrWhiteSpace(txtTech.Text) ||
+                string.IsNullOrWhiteSpace(txtSerial.Text) ||
+                string.IsNullOrWhiteSpace(txtCpu.Text))
+            {
+                MessageBox.Show("נא למלא את כל 3 השדות טרם תחילת האוטומציה.",
+                    "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            context.TechName = txtTech.Text.Trim();
+            context.SerialNum = txtSerial.Text.Trim();
+            context.CpuGen = txtCpu.Text.Trim();
+            context.IsFullAuto = fullAuto;
+            context.SkipHostname = chkSkipHostname?.Checked ?? false;
+            context.SelectedManufacturer = cmbManufacturer.SelectedItem?.ToString() ?? "Lenovo";
+
+            ShowAutomationScreen();
+            StartGlobalTimer();
+
+            AppendLog($"התחלת תהליך ({(fullAuto ? "אוטומציה מלאה" : "חצי אוטומטי")})");
+            AppendLog($"טכנאי: {context.TechName} | סיריאלי: {context.SerialNum} | דור CPU: {context.CpuGen} | יצרן: {context.SelectedManufacturer}");
+
+            RunCurrentPhase();
+        }
+
+        private async void RunCurrentPhase()
+        {
+            int phaseIdx = currentPhase - 1; // Convert 1-based to 0-based
+            if (phaseIdx < 0 || phaseIdx >= allPhases.Length) return;
+
+            var phase = allPhases[phaseIdx];
+            var config = AppConfig.Current;
+
+            // Setup stepper with all phases, highlighting the current one
+            stepperControl.SetPhases(allPhases, phaseIdx);
+            UpdateStatus(phase.PhaseName);
+
+            // Execute the phase
+            var result = await phase.ExecuteAsync(
+                context,
+                AppendLog,
+                (stepIdx, status) => stepperControl.UpdateStep(phaseIdx, stepIdx, status));
+
+            // Handle result
+            switch (result)
+            {
+                case PhaseResult.RestartLoop:
+                    UpdateStatus("כשל דווח! מקנפג חזרה ללופ ומבצע הפעלה מחדש...");
+                    await Task.Delay(config.Timeouts.PhaseTransitionDelayMs);
+                    AutomationLogic.SetupAutoResumeAndRestart(
+                        currentPhase, context.TechName, context.SerialNum, context.CpuGen,
+                        context.IsFullAuto, context.SkipHostname, context.SelectedManufacturer);
+                    break;
+
+                case PhaseResult.RestartAdvance:
+                    stepperControl.MarkPhaseComplete(phaseIdx);
+                    UpdateStatus($"{phase.PhaseName} הסתיימה! מכין מחשב להפעלה מחדש...");
+                    await Task.Delay(config.Timeouts.PhaseTransitionDelayMs);
+                    AutomationLogic.SetupAutoResumeAndRestart(
+                        currentPhase + 1, context.TechName, context.SerialNum, context.CpuGen,
+                        context.IsFullAuto, context.SkipHostname, context.SelectedManufacturer);
+                    break;
+
+                case PhaseResult.Success:
+                    // Only Phase 3 returns Success – continue to interactive QA
+                    await HandlePhase3Interactive(phaseIdx);
+                    break;
+            }
+        }
+
+        // =====================================================================
+        //  PHASE 3: INTERACTIVE QA (UI-dependent, stays in MainForm)
+        // =====================================================================
+
+        private async Task HandlePhase3Interactive(int phaseIdx)
+        {
+            string summaryMsg =
+                "התהליך האוטומטי מאחורי הקלעים הושלם!\n\n" +
+                "הפעולות שבוצעו במחשב לאורך ההפעלה:\n" +
+                "============================\n" +
+                "✓ שחזור רכיבי מערכת ופגמים (DISM)\n" +
+                "✓ הרחבת מחיצת אחסון של כונן C\n" +
+                "✓ סריקה והתקנת דרייברים מהיצרן\n" +
+                "✓ משיכת עדכוני אבטחה (Windows Update)\n" +
+                "✓ ביצוע אקטיבציה של הווינדוס ואופיס\n" +
+                "✓ ביצוע אופטימיזציה לסוג הכונן (TRIM/Defrag)\n" +
+                "✓ ניקוי מקיף של קבצי זבל, שאריות ומטמון\n\n" +
+                "כעת אנו עוברים לשלב הסופי: בדיקות חומרה (QA Diagnosics).";
+
+            MessageBox.Show(summaryMsg, "סיכום משימות אוטומציה", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            UpdateStatus("פותח את מסך האבחון / QA...");
+
+            // === Step 5: Interactive Hardware QA Tests ===
+            stepperControl.UpdateStep(phaseIdx, 5, StepStatus.Running);
+            AppendLog("פותח מסך אבחון חומרה אינטראקטיבי");
+
+            DialogResult micRes = DialogResult.None, stereoRes = DialogResult.None,
+                camRes = DialogResult.None, kbRes = DialogResult.None,
+                tpRes = DialogResult.None, usbRes = DialogResult.None;
+
+            using var overlay = new Form
+            {
+                StartPosition = FormStartPosition.Manual,
+                Location = this.Location,
+                Size = this.Size,
+                BackColor = Color.Black,
+                Opacity = 0.6,
+                FormBorderStyle = FormBorderStyle.None,
+                ShowInTaskbar = false
+            };
+            overlay.Show(this);
+
+            using var qaForm = new QaDiagnosticsForm();
+            qaForm.ShowDialog(overlay);
+
+            micRes = qaForm.MicResult;
+            stereoRes = qaForm.SpeakerResult;
+            camRes = qaForm.CameraResult;
+            kbRes = qaForm.KeyboardResult;
+            tpRes = qaForm.TrackpadResult;
+            usbRes = qaForm.UsbResult;
+
+            overlay.Close();
+
+            stepperControl.UpdateStep(phaseIdx, 5, StepStatus.Completed);
+
+            AppendLog($"מיקרופון: {(micRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
+            AppendLog($"רמקולים: {(stereoRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
+            AppendLog($"מצלמה: {(camRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
+            AppendLog($"מקלדת: {(kbRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
+            AppendLog($"משטח מגע: {(tpRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
+            AppendLog($"כניסות USB: {(usbRes == DialogResult.Yes ? "תקין ✓" : (usbRes == DialogResult.Ignore ? "דולג ⏭" : "נכשל ✗"))}");
+
+            stepperControl.MarkPhaseComplete(phaseIdx);
+
+            // === STOP TIMER ===
+            StopGlobalTimer();
+            string totalTime = GetElapsedTimeString();
+            context.ElapsedTime = totalTime;
+            AppendLog($"═══ התהליך הושלם! זמן כולל: {totalTime} ═══");
+
+            ShowResultsSummary(micRes, camRes, kbRes, tpRes, usbRes, context.SsdHealth, stereoRes, totalTime);
+        }
+
+        // =====================================================================
+        //  TIMER
+        // =====================================================================
+
         private void StartGlobalTimer()
         {
             lblTimer.Visible = true;
-            if (!processStopwatch.IsRunning) processStopwatch.Start(); // Start only if not already running (for resume)
+            if (!processStopwatch.IsRunning) processStopwatch.Start();
             elapsedTimer.Start();
         }
 
@@ -158,204 +602,18 @@ namespace WinAutomator
             return $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
         }
 
-        // === NEW: Detailed Log Panel ===
-        private void InitializeLogPanel()
-        {
-            // Log panel
-            logPanel = new Panel()
-            {
-                Location = new Point(20, 385), // Higher up, under the timer
-                Size = new Size(495, 200),
-                BackColor = Color.FromArgb(18, 18, 18),
-                BorderStyle = BorderStyle.FixedSingle,
-                Visible = false
-            };
-
-            rtbLog = new RichTextBox()
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(18, 18, 18),
-                ForeColor = Color.FromArgb(180, 220, 180),
-                Font = new Font("Consolas", 9),
-                ReadOnly = true,
-                BorderStyle = BorderStyle.None,
-                ScrollBars = RichTextBoxScrollBars.Vertical,
-                RightToLeft = RightToLeft.No,
-                WordWrap = true
-            };
-            logPanel.Controls.Add(rtbLog);
-
-            this.Controls.Add(logPanel);
-        }
+        // =====================================================================
+        //  LOG & STATUS
+        // =====================================================================
 
         private void AppendLog(string message)
         {
-            string timestamp = DateTime.Now.ToString("HH:mm:ss");
-            string entry = $"[{timestamp}] {message}";
+            if (InvokeRequired) { Invoke(new Action(() => AppendLog(message))); return; }
+
+            string entry = $"[{DateTime.Now:HH:mm:ss}] {message}";
             logEntries.Add(entry);
-
-            if (InvokeRequired) 
-            { 
-                Invoke(new Action(() => AppendLog(message))); 
-                return; 
-            }
-
             rtbLog.AppendText(entry + "\n");
             rtbLog.ScrollToCaret();
-        }
-
-        private void HeaderPanel_Paint(object sender, PaintEventArgs e)
-        {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            
-            string title = "תוכנה להתקנת מחשב";
-            string prefix = "נבנה על ידי ";
-            string nameWord1 = "יקיר";
-            string nameWord2 = "לביא";
-            
-            Font fontTitle = new Font("Segoe UI", 13, FontStyle.Regular);
-            Font fontCredit = new Font("Segoe UI", 20, FontStyle.Bold);
-
-            // --- Line 1: Title (centered, static gray) ---
-            SizeF titleSize = e.Graphics.MeasureString(title, fontTitle);
-            float titleX = (headerPanel.Width - titleSize.Width) / 2f;
-            e.Graphics.DrawString(title, fontTitle, Brushes.Gray, new PointF(titleX, 6));
-
-            // --- Line 2: Credit (draw as 3 segments: prefix + word1 + space + word2) ---
-            // Measure each segment to position them correctly
-            // In RTL: visual order is  לביא  יקיר  נבנה על ידי  (right to left)
-            // But DrawString with RTL handles this for us if we draw segments in logical order
-            
-            // Use StringFormat for proper RTL rendering
-            StringFormat sfRtl = new StringFormat(StringFormat.GenericTypographic);
-            sfRtl.FormatFlags |= StringFormatFlags.DirectionRightToLeft;
-            
-            // Measure the full credit line for centering
-            string fullCredit = prefix + nameWord1 + " " + nameWord2;
-            SizeF fullSize = e.Graphics.MeasureString(fullCredit, fontCredit);
-            float creditX = (headerPanel.Width - fullSize.Width) / 2f;
-            float creditY = 40;
-            
-            // Draw the prefix "נבנה על ידי " in static gray
-            e.Graphics.DrawString(prefix, fontCredit, Brushes.DarkGray, new PointF(creditX, creditY));
-            
-            // Measure prefix width to know where the name starts
-            SizeF prefixSize = e.Graphics.MeasureString(prefix, fontCredit);
-            float nameStartX = creditX + prefixSize.Width;
-            
-            // Draw name word 1: "יקיר" with static glow
-            Color color1 = Color.Cyan;
-            
-            // Glow layer for word 1
-            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40, color1)))
-            {
-                for (int r = 1; r <= 2; r++)
-                {
-                    e.Graphics.DrawString(nameWord1, fontCredit, glowBrush, nameStartX - r, creditY - r);
-                    e.Graphics.DrawString(nameWord1, fontCredit, glowBrush, nameStartX + r, creditY + r);
-                }
-            }
-            using (SolidBrush textBrush = new SolidBrush(color1))
-            {
-                e.Graphics.DrawString(nameWord1, fontCredit, textBrush, nameStartX, creditY);
-            }
-            
-            // Measure word1 to position word2
-            SizeF word1Size = e.Graphics.MeasureString(nameWord1 + " ", fontCredit);
-            float word2X = nameStartX + word1Size.Width;
-            
-            // Draw name word 2: "לביא" with static glow
-            Color color2 = Color.DodgerBlue;
-            
-            // Glow layer for word 2
-            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40, color2)))
-            {
-                for (int r = 1; r <= 2; r++)
-                {
-                    e.Graphics.DrawString(nameWord2, fontCredit, glowBrush, word2X - r, creditY - r);
-                    e.Graphics.DrawString(nameWord2, fontCredit, glowBrush, word2X + r, creditY + r);
-                }
-            }
-            using (SolidBrush textBrush = new SolidBrush(color2))
-            {
-                e.Graphics.DrawString(nameWord2, fontCredit, textBrush, word2X, creditY);
-            }
-        }
-
-
-
-        private void ShowInputFields()
-        {
-            Font f = new Font("Segoe UI", 11);
-            
-            Label l1 = new Label() { Text = "שם הטכנאי:", Location = new Point(360, 120), AutoSize = true, Font = f };
-            txtTech = new TextBox() { Location = new Point(90, 117), Width = 250, Font = f, BackColor = Color.FromArgb(50,50,50), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-
-            Label l2 = new Label() { Text = "מספר סידורי:", Location = new Point(360, 170), AutoSize = true, Font = f };
-            txtSerial = new TextBox() { Location = new Point(90, 167), Width = 250, Font = f, BackColor = Color.FromArgb(50,50,50), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-
-            Label l3 = new Label() { Text = "דור מעבד:", Location = new Point(360, 220), AutoSize = true, Font = f };
-            txtCpu = new TextBox() { Location = new Point(90, 217), Width = 250, Font = f, BackColor = Color.FromArgb(50,50,50), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-
-            chkSkipHostname = new CheckBox() { 
-                Text = "דלג על שינוי שם המחשב (מצב בדיקה)", 
-                Location = new Point(90, 255), 
-                Width = 350, 
-                Font = new Font("Segoe UI", 10, FontStyle.Bold), 
-                ForeColor = Color.FromArgb(255, 160, 0) 
-            };
-
-            btnFullAuto = new Button() { Text = "אוטומציה מלאה", Location = new Point(270, 300), Width = 150, Height = 40, FlatStyle = FlatStyle.Flat, BackColor = Color.SeaGreen, ForeColor = Color.White, Font = f, Cursor = Cursors.Hand };
-            btnFullAuto.FlatAppearance.BorderSize = 0;
-            btnFullAuto.Click += (s, e) => StartFresh(true);
-
-            btnSemiAuto = new Button() { Text = "חצי אוטומטי", Location = new Point(90, 300), Width = 150, Height = 40, FlatStyle = FlatStyle.Flat, BackColor = Color.SteelBlue, ForeColor = Color.White, Font = f, Cursor = Cursors.Hand };
-            btnSemiAuto.FlatAppearance.BorderSize = 0;
-            btnSemiAuto.Click += (s, e) => StartFresh(false);
-
-            this.Controls.Add(l1); this.Controls.Add(txtTech);
-            this.Controls.Add(l2); this.Controls.Add(txtSerial);
-            this.Controls.Add(l3); this.Controls.Add(txtCpu);
-            this.Controls.Add(chkSkipHostname);
-            this.Controls.Add(btnFullAuto); this.Controls.Add(btnSemiAuto);
-        }
-
-        private void StartFresh(bool fullAuto)
-        {
-            if(string.IsNullOrWhiteSpace(txtTech.Text) || string.IsNullOrWhiteSpace(txtSerial.Text) || string.IsNullOrWhiteSpace(txtCpu.Text))
-            {
-                MessageBox.Show("נא למלא את כל 3 השדות טרם תחילת האוטומציה.", "שגיאה", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            this.techName = txtTech.Text.Trim();
-            this.serialNum = txtSerial.Text.Trim();
-            this.cpuGen = txtCpu.Text.Trim();
-            this.isFullAuto = fullAuto;
-            this.skipHostname = chkSkipHostname.Checked;
-
-            // Hide the Inputs to show the loading screen
-            foreach (Control c in this.Controls) {
-                if (c is TextBox || c is Button || c is CheckBox || (c is Label && c.Parent != headerPanel)) c.Visible = false;
-            }
-
-            LockUIForAutomation();
-            StartGlobalTimer();
-            AppendLog($"התחלת תהליך ({(fullAuto ? "אוטומציה מלאה" : "חצי אוטומטי")})");
-            AppendLog($"טכנאי: {techName} | סיריאלי: {serialNum} | דור CPU: {cpuGen}");
-            ExecutePhase1();
-        }
-
-        private void LockUIForAutomation()
-        {
-            progressBar.Visible = true;
-            // Indeterminate Marquee bar
-            progressBar.Style = ProgressBarStyle.Marquee;
-            progressBar.MarqueeAnimationSpeed = 30;
-
-            // Show log panel permanently
-            logPanel.Visible = true;
         }
 
         private void UpdateStatus(string message)
@@ -365,197 +623,40 @@ namespace WinAutomator
             AppendLog(message);
         }
 
-        // ======================= PHASE 1 =======================
-        private async void ExecutePhase1()
+        // =====================================================================
+        //  RESULTS SUMMARY
+        // =====================================================================
+
+        private void ShowResultsSummary(DialogResult mic, DialogResult cam, DialogResult kb,
+            DialogResult tp, DialogResult usb, string ssd, DialogResult stereo, string totalTime)
         {
-            AppendLog("═══ פאזה 1: הכנת דיסק ותיקון ליבה ═══");
-
-            UpdateStatus("פאזה 1: סורק ומרחיב דיסק (במידה וניתן)...");
-            await Task.Run(() => AutomationLogic.ExtendCDrive());
-            AppendLog("הרחבת דיסק C הושלמה");
-
-            UpdateStatus("פאזה 1: מריץ פקודת DISM לשיקום מערכת. נא להמתין...");
-            bool dismSuccess = await Task.Run(() => AutomationLogic.RunDismCommand(this.isFullAuto));
-            AppendLog($"DISM הסתיים (הצלחה: {dismSuccess})");
-
-            if (!this.isFullAuto)
+            if (InvokeRequired)
             {
-                DialogResult res = MessageBox.Show("האם תהליך ה-DISM הסתיים בהצלחה בלי שגיאות אדומות?", "בקרת DISM חציונית", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (res == DialogResult.No)
-                {
-                    AppendLog("⚠ כשל DISM דווח ע\"י הטכנאי – מתחיל לופ ריסטארט");
-                    UpdateStatus("כשל DISM דווח! מקנפג חזרה ללופ פאזה 1 ומבצע הפעלה מחדש...");
-                    await Task.Delay(2000);
-                    AutomationLogic.SetupAutoResumeAndRestart(1, techName, serialNum, cpuGen, isFullAuto, skipHostname);
-                    return; // Stops here, restarts PC.
-                }
-            }
-            
-            // Success! Move to Phase 2
-            AppendLog("✓ פאזה 1 הושלמה בהצלחה – מכין ריסטארט לפאזה 2");
-            UpdateStatus("פאזה 1 הסתיימה! מכין מחשב להפעלה מחדש (לפני פאזה 2)...");
-            await Task.Delay(2000);
-            AutomationLogic.SetupAutoResumeAndRestart(2, techName, serialNum, cpuGen, isFullAuto, skipHostname);
-        }
-
-        // ======================= PHASE 2 =======================
-        private async void ExecutePhase2()
-        {
-            AppendLog("═══ פאזה 2: רשיונות, דרייברים ועדכונים ═══");
-
-            if (skipHostname)
-            {
-                UpdateStatus("פאזה 2: דילוג על שינוי שם המחשב לפי בקשת המשתמש...");
-                AppendLog("דילוג על Hostname (בקשת משתמש)");
-            }
-            else
-            {
-                UpdateStatus("פאזה 2: מעדכן שם מחשב (Hostname)...");
-                await Task.Run(() => AutomationLogic.ChangeHostname(serialNum));
-                AppendLog($"Hostname שונה ל: {serialNum}");
+                Invoke(new Action(() => ShowResultsSummary(mic, cam, kb, tp, usb, ssd, stereo, totalTime)));
+                return;
             }
 
-            UpdateStatus("פאזה 2: מבצע אקטיבציה ל-Windows 11...");
-            await Task.Run(() => AutomationLogic.ActivateWindows());
-            AppendLog("אקטיבציית Windows הושלמה");
+            // Hide automation panel
+            automationPanel.Visible = false;
 
-            UpdateStatus("פאזה 2: מבצע אקטיבציה ל-Office 2021...");
-            await Task.Run(() => AutomationLogic.ActivateOffice());
-            AppendLog("אקטיבציית Office הושלמה");
-
-            // Heavy Updates
-            await Task.Run(() => AutomationLogic.RunOemUpdates(UpdateStatus));
-            AppendLog("עדכוני OEM הושלמו");
-            await Task.Run(() => AutomationLogic.RunWindowsUpdates(UpdateStatus));
-            AppendLog("בקשת עדכוני Windows נשלחה. ממתין...");
-
-            UpdateStatus("ממתין 60 שניות כדי לאפשר לעדכוני Windows לרדת ברקע...");
-            await Task.Delay(60000);
-            AppendLog("עדכוני Windows סיימו המתנה של דקה לחילוץ חבילות");
-
-            // Success! Move to Phase 3
-            AppendLog("✓ פאזה 2 הושלמה בהצלחה – מכין ריסטארט לפאזה 3");
-            UpdateStatus("פאזה 2 הסתיימה בהצלחה! השלמנו מאסת עדכונים, מאתחל (לפאזה 3)...");
-            await Task.Delay(2000);
-            AutomationLogic.SetupAutoResumeAndRestart(3, techName, serialNum, cpuGen, isFullAuto, skipHostname);
-        }
-
-        // ======================= PHASE 3 (QA) =======================
-        private async void ExecutePhase3()
-        {
-            AppendLog("═══ פאזה 3: אבחון חומרה ובדיקות QA ═══");
-            progressBar.Style = ProgressBarStyle.Blocks;
-            progressBar.Value = 5;
-            
-            // --- Defrag / Optimize SSD ---
-            UpdateStatus("מבצע אופטימיזציה לכונן (TRIM/Defrag)...");
-            string defragOutput = await Task.Run(() => AutomationLogic.OptimizeDrive(UpdateStatus));
-            AppendLog("תוצאת Defrag/Optimize:\n" + defragOutput.Trim());
-            progressBar.Value = 10;
-
-            UpdateStatus("מפיק דו\"ח בריאות סוללה ומשדר ל-API ב-Base44...");
-            await AutomationLogic.PerformBatteryReportAndApi(techName, serialNum, cpuGen, UpdateStatus);
-            AppendLog("דוח סוללה שוגר ל-API");
-
-            UpdateStatus("סיימנו התקנות! מכין סביבת בדיקות (QA Diagnostics)...");
-            AppendLog("♫ משמיע צליל סיום התקנות...");
-            await Task.Run(() => AutomationLogic.PlayVictorySound());
-            
-            string summaryMsg = 
-                "התהליך האוטומטי מאחורי הקלעים הושלם!\n\n" +
-                "הפעולות שבוצעו במחשב לאורך ההפעלה:\n" +
-                "============================\n" +
-                "✓ שחזור רכיבי מערכת ופגמים (DISM)\n" +
-                "✓ הרחבת מחיצת אחסון של כונן C\n" +
-                "✓ סריקה והתקנת דרייברים מהיצרן\n" +
-                "✓ משיכת עדכוני אבטחה (Windows Update)\n" +
-                "✓ ביצוע אקטיבציה של הווינדוס ואופיס\n" +
-                "✓ ביצוע אופטימיזציה לסוג הכונן (TRIM/Defrag)\n" +
-                "✓ ניקוי מקיף של קבצי זבל, שאריות ומטמון\n\n" +
-                "כעת אנו עוברים לשלב הסופי: בדיקות חומרה (QA Diagnosics).";
-                
-            MessageBox.Show(summaryMsg, "סיכום משימות אוטומציה", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-            UpdateStatus("פותח את מסך האבחון / QA. נא להמשיך בחלון החדש...");
-
-            DialogResult micRes = DialogResult.None;
-            DialogResult stereoRes = DialogResult.None;
-            DialogResult camRes = DialogResult.None;
-            DialogResult kbRes = DialogResult.None;
-            DialogResult tpRes = DialogResult.None;
-            DialogResult usbRes = DialogResult.None;
-
-            // Run in UI thread specifically for Form execution and locking
-            await Task.Run(() => 
-            {
-                Invoke(new Action(() => 
-                {
-                    // Create overlay to dim the screen
-                    using (Form overlay = new Form())
-                    {
-                        overlay.StartPosition = FormStartPosition.Manual;
-                        overlay.Location = this.Location;
-                        overlay.Size = this.Size;
-                        overlay.BackColor = Color.Black;
-                        overlay.Opacity = 0.6; // Dim the main form nicely
-                        overlay.FormBorderStyle = FormBorderStyle.None;
-                        overlay.ShowInTaskbar = false;
-                        overlay.Show(this);
-
-                        using (var qaForm = new QaDiagnosticsForm())
-                        {
-                            qaForm.ShowDialog(overlay);
-                            
-                            // Capture the results
-                            micRes = qaForm.MicResult;
-                            stereoRes = qaForm.SpeakerResult;
-                            camRes = qaForm.CameraResult;
-                            kbRes = qaForm.KeyboardResult;
-                            tpRes = qaForm.TrackpadResult;
-                            usbRes = qaForm.UsbResult;
-                        }
-
-                        overlay.Close();
-                    }
-                }));
-            });
-
-            progressBar.Value = 100;
-
-            // Log the captured results directly since the inner windows dealt with user logging
-            AppendLog($"מיקרופון: {(micRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
-            AppendLog($"רמקולים: {(stereoRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
-            AppendLog($"מצלמה: {(camRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
-            AppendLog($"מקלדת: {(kbRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
-            AppendLog($"משטח מגע: {(tpRes == DialogResult.Yes ? "תקין ✓" : "נכשל ✗")}");
-            AppendLog($"כניסות USB: {(usbRes == DialogResult.Yes ? "תקין ✓" : (usbRes == DialogResult.Ignore ? "דולג ⏭" : "נכשל ✗"))}");
-
-            // === STOP TIMER ===
-            StopGlobalTimer();
-            string totalTime = GetElapsedTimeString();
-            AppendLog($"═══ התהליך הושלם! זמן כולל: {totalTime} ═══");
-
-            ShowResultsSummary(micRes, camRes, kbRes, tpRes, usbRes, ssdHealth, stereoRes, totalTime);
-        }
-
-        private void ShowResultsSummary(DialogResult mic, DialogResult cam, DialogResult kb, DialogResult tp, DialogResult usb, string ssd, DialogResult stereo, string totalTime)
-        {
-            if (InvokeRequired) { Invoke(new Action(() => ShowResultsSummary(mic, cam, kb, tp, usb, ssd, stereo, totalTime))); return; }
-            
-            // Clear existing controls except header
-            foreach (Control c in this.Controls) if (c != headerPanel) c.Visible = false;
-
-            // Resize form for results (collapse log if expanded)
+            // Resize form for results
             this.Height = 530;
 
-            Panel resPanel = new Panel() { 
-                Location = new Point(50, 110), Size = new Size(450, 370), 
-                BackColor = Color.FromArgb(40, 40, 40), BorderStyle = BorderStyle.FixedSingle 
+            Panel resPanel = new Panel
+            {
+                Location = new Point(50, 110),
+                Size = new Size(450, 370),
+                BackColor = Color.FromArgb(40, 40, 40),
+                BorderStyle = BorderStyle.FixedSingle
             };
-            
-            Label title = new Label() { 
-                Text = "סיכום בדיקות שבוצעו", Dock = DockStyle.Top, Height = 35, 
-                TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 12, FontStyle.Bold) 
+
+            Label title = new Label
+            {
+                Text = "סיכום בדיקות שבוצעו",
+                Dock = DockStyle.Top,
+                Height = 35,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 12, FontStyle.Bold)
             };
             resPanel.Controls.Add(title);
 
@@ -564,43 +665,68 @@ namespace WinAutomator
 
             for (int i = 0; i < names.Length; i++)
             {
-                Label lblName = new Label() { Text = names[i], Location = new Point(300, 40 + i * 35), AutoSize = true, Font = new Font("Segoe UI", 10) };
-                
-                string resTxt = "נכשל ✗";
-                Color resCol = Color.LightCoral;
+                Label lblName = new Label
+                {
+                    Text = names[i],
+                    Location = new Point(300, 40 + i * 35),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 10)
+                };
+
+                string resTxt = "נכשל ✗"; Color resCol = Color.LightCoral;
                 if (results[i] == DialogResult.Yes) { resTxt = "תקין ✓"; resCol = Color.LimeGreen; }
                 else if (results[i] == DialogResult.Ignore) { resTxt = "דולג ⏭"; resCol = Color.Goldenrod; }
 
-                Label lblRes = new Label() { 
-                    Text = resTxt, 
+                Label lblRes = new Label
+                {
+                    Text = resTxt,
                     ForeColor = resCol,
-                    Location = new Point(50, 40 + i * 35), AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) 
+                    Location = new Point(50, 40 + i * 35),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
                 };
                 resPanel.Controls.Add(lblName);
                 resPanel.Controls.Add(lblRes);
             }
 
             // SSD Info
-            Label lblSsdTitle = new Label() { Text = "בריאות דיסק:", Location = new Point(300, 40 + names.Length * 35), AutoSize = true, Font = new Font("Segoe UI", 10) };
-            Label lblSsdVal = new Label() { Text = ssd, Location = new Point(30, 40 + names.Length * 35), Width = 250, ForeColor = Color.Cyan, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            resPanel.Controls.Add(lblSsdTitle); resPanel.Controls.Add(lblSsdVal);
+            resPanel.Controls.Add(new Label
+            {
+                Text = "בריאות דיסק:",
+                Location = new Point(300, 40 + names.Length * 35),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10)
+            });
+            resPanel.Controls.Add(new Label
+            {
+                Text = ssd,
+                Location = new Point(30, 40 + names.Length * 35),
+                Width = 250,
+                ForeColor = Color.Cyan,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            });
 
-            // === Total Time Display ===
+            // Total Time
             int timeY = 40 + (names.Length + 1) * 35;
-            Label lblTimeTitle = new Label() { Text = "⏱ זמן כולל:", Location = new Point(300, timeY), AutoSize = true, Font = new Font("Segoe UI", 10) };
-            Label lblTimeVal = new Label() 
-            { 
-                Text = totalTime, 
-                Location = new Point(50, timeY), 
-                AutoSize = true, 
-                ForeColor = Color.FromArgb(0, 200, 255), 
+            resPanel.Controls.Add(new Label
+            {
+                Text = "⏱ זמן כולל:",
+                Location = new Point(300, timeY),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10)
+            });
+            resPanel.Controls.Add(new Label
+            {
+                Text = totalTime,
+                Location = new Point(50, timeY),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(0, 200, 255),
                 Font = new Font("Consolas", 12, FontStyle.Bold),
                 RightToLeft = RightToLeft.No
-            };
-            resPanel.Controls.Add(lblTimeTitle); resPanel.Controls.Add(lblTimeVal);
+            });
 
-            // === Show Log Button ===
-            Button btnShowLog = new Button()
+            // Show Log Button
+            Button btnShowLog = new Button
             {
                 Text = "📋 הצג לוג מלא",
                 Location = new Point(20, 310),
@@ -613,18 +739,17 @@ namespace WinAutomator
                 Cursor = Cursors.Hand
             };
             btnShowLog.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
-            btnShowLog.Click += (s, e) =>
+            btnShowLog.Click += (_, _) =>
             {
-                // Show a new form with the full log
-                Form logForm = new Form()
+                Form logForm = new Form
                 {
-                    Text = "לוג מפורט - WinAutomator",
+                    Text = "Detail Log - Project Aura",
                     Size = new Size(700, 500),
                     StartPosition = FormStartPosition.CenterParent,
                     BackColor = Color.FromArgb(18, 18, 18),
                     ForeColor = Color.White
                 };
-                RichTextBox fullLog = new RichTextBox()
+                RichTextBox fullLog = new RichTextBox
                 {
                     Dock = DockStyle.Fill,
                     BackColor = Color.FromArgb(18, 18, 18),
@@ -640,12 +765,19 @@ namespace WinAutomator
             };
             resPanel.Controls.Add(btnShowLog);
 
-            Button btnFinish = new Button() { 
-                Text = "סיום וסגירה", Location = new Point(230, 310), Width = 190, Height = 35, 
-                FlatStyle = FlatStyle.Flat, BackColor = Color.SeaGreen, Cursor = Cursors.Hand 
+            // Finish Button
+            Button btnFinish = new Button
+            {
+                Text = "סיום וסגירה",
+                Location = new Point(230, 310),
+                Width = 190,
+                Height = 35,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.SeaGreen,
+                Cursor = Cursors.Hand
             };
             btnFinish.FlatAppearance.BorderSize = 0;
-            btnFinish.Click += (s, e) => Application.Exit();
+            btnFinish.Click += (_, _) => Application.Exit();
             resPanel.Controls.Add(btnFinish);
 
             this.Controls.Add(resPanel);

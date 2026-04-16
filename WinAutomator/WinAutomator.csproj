@@ -13,6 +13,7 @@
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishReadyToRun>true</PublishReadyToRun>
+    <AssemblyName>WinAutomator_ModernUI</AssemblyName>
   </PropertyGroup>
 
   <!-- Prevent the builder from expecting windows-only SDK components right away -->
@@ -21,6 +22,15 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Management" Version="10.0.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="SpeakerTest.mp3" />
   </ItemGroup>
 
 </Project>
