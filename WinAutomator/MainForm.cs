@@ -285,16 +285,41 @@ namespace WinAutomator
 
             // --- Action Buttons ---
             btnFullAuto = CreateActionButton("אוטומציה מלאה", Color.FromArgb(32, 160, 100),
-                Color.FromArgb(40, 190, 120), new Point(270, 320));
+                Color.FromArgb(40, 190, 120), new Point(270, 350));
             btnFullAuto.Click += (_, _) => StartFresh(true);
             inputPanel.Controls.Add(btnFullAuto);
 
             btnSemiAuto = CreateActionButton("חצי אוטומטי", Color.FromArgb(40, 120, 180),
-                Color.FromArgb(60, 140, 200), new Point(50, 320));
+                Color.FromArgb(60, 140, 200), new Point(50, 350));
             btnSemiAuto.Click += (_, _) => StartFresh(false);
             inputPanel.Controls.Add(btnSemiAuto);
 
+            // --- Jump to QA Button ---
+            if (File.Exists(@"C:\WinAutomator_Completed.tag"))
+            {
+                var btnJumpQA = CreateActionButton("קפוץ ישירות לבדיקות חומרה", Color.FromArgb(200, 100, 30),
+                    Color.FromArgb(220, 120, 50), new Point(160, 420));
+                btnJumpQA.Click += (_, _) => JumpToQA();
+                inputPanel.Controls.Add(btnJumpQA);
+            }
+
             this.Controls.Add(inputPanel);
+        }
+
+        private void JumpToQA()
+        {
+            context.TechName = txtTech.Text.Trim() == "" ? "טכנאי מעבדה" : txtTech.Text.Trim();
+            context.SerialNum = txtSerial.Text.Trim() == "" ? "Unknown" : txtSerial.Text.Trim();
+            context.CpuGen = txtCpu.Text.Trim() == "" ? "Unknown" : txtCpu.Text.Trim();
+            context.SelectedManufacturer = cmbManufacturer.SelectedItem?.ToString() ?? "אחר";
+            
+            ShowAutomationScreen();
+            StartGlobalTimer();
+            AppendLog("מתחיל אבחון חומרה (QA) ישירות...");
+            
+            // Phase 3 is index 2
+            currentPhase = 3;
+            RunCurrentPhase();
         }
 
         private void ToggleUpdateChannel()
@@ -617,6 +642,8 @@ namespace WinAutomator
             string totalTime = GetElapsedTimeString();
             context.ElapsedTime = totalTime;
             AppendLog($"═══ התהליך הושלם! זמן כולל: {totalTime} ═══");
+
+            try { File.WriteAllText(@"C:\WinAutomator_Completed.tag", DateTime.Now.ToString()); } catch { }
 
             ShowResultsSummary(micRes, camRes, kbRes, tpRes, usbRes, context.SsdHealth, stereoRes, totalTime);
         }

@@ -20,7 +20,7 @@ namespace WinAutomator
         public CleanupConfig Cleanup { get; set; } = new();
         public UpdateConfig Updates { get; set; } = new();
         public string LogFolderName { get; set; } = "WinAutomator_Logs";
-        public string[] Manufacturers { get; set; } = { "Lenovo", "Dell", "HP" };
+        public string[] Manufacturers { get; set; } = { "Lenovo", "Dell", "HP", "אחר" };
 
         /// <summary>
         /// Thread-safe singleton accessor. Loads config once from disk.

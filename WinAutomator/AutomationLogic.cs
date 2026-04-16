@@ -90,7 +90,7 @@ namespace WinAutomator
                         hadActivity = RunHpUpdates(updateStatus);
                     else
                     {
-                        updateStatus($"אזהרה: היצרן '{selectedManufacturer}' לא מוכר. נסתמך על Windows Update.");
+                        updateStatus($"נבחר יצרן '{selectedManufacturer}'. מדלג על כלי יצרן ומשתמש בעדכונים אוניברסליים.");
                         break;
                     }
 
