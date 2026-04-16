@@ -183,7 +183,7 @@ namespace WinAutomator
 
             StringFormat sfCenter = new StringFormat { Alignment = StringAlignment.Center };
             RectangleF rect = new RectangleF(0, 48, headerPanel.Width, 30);
-            e.Graphics.DrawString("Built by Yakir Lavi", fontCredit, Brushes.LightGray, rect, sfCenter);
+            e.Graphics.DrawString("Built by DrModz", fontCredit, Brushes.Crimson, rect, sfCenter);
         }
 
         // =====================================================================
