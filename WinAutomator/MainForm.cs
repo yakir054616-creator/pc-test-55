@@ -104,7 +104,7 @@ namespace WinAutomator
         private void InitializeForm()
         {
             this.Text = "Project Aura - Windows Automator";
-            this.Size = new Size(550, 700);
+            this.Size = new Size(650, 820);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
@@ -157,7 +157,7 @@ namespace WinAutomator
             {
                 Text = "✕",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                Location = new Point(510, 10),
+                Location = new Point(610, 10),
                 AutoSize = true,
                 ForeColor = Color.DarkGray,
                 Cursor = Cursors.Hand,
@@ -196,7 +196,7 @@ namespace WinAutomator
             inputPanel = new Panel
             {
                 Location = new Point(0, 80),
-                Size = new Size(550, 620),
+                Size = new Size(650, 740),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -207,7 +207,7 @@ namespace WinAutomator
             // --- TableLayoutPanel for input fields ---
             var table = new TableLayoutPanel
             {
-                Location = new Point(30, 40),
+                Location = new Point(80, 40),
                 Size = new Size(490, 220),
                 ColumnCount = 2,
                 RowCount = 4,
@@ -257,7 +257,7 @@ namespace WinAutomator
             chkSkipHostname = new CheckBox
             {
                 Text = "דלג על שינוי שם המחשב (מצב בדיקה)",
-                Location = new Point(120, 270),
+                Location = new Point(160, 280),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.FromArgb(255, 170, 0),
@@ -265,32 +265,33 @@ namespace WinAutomator
             };
             inputPanel.Controls.Add(chkSkipHostname);
             
-            // --- Beta Toggle Button ---
+            // --- Beta Toggle Button (small, bottom-left corner) ---
+            string channelText = AppConfig.Current.Updates.UpdateChannel == "Beta" ? "Beta ⚡" : "Stable";
             btnBetaToggle = new Button
             {
-                Text = $"ערוץ עדכונים: {AppConfig.Current.Updates.UpdateChannel}",
-                Location = new Point(120, 295),
-                Size = new Size(200, 24),
+                Text = channelText,
+                Location = new Point(8, 700),
+                Size = new Size(80, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(45, 45, 48),
-                ForeColor = Color.LightGray,
-                Font = new Font("Segoe UI", 9, FontStyle.Regular),
+                BackColor = Color.FromArgb(35, 35, 38),
+                ForeColor = AppConfig.Current.Updates.UpdateChannel == "Beta" ? Color.FromArgb(255, 140, 40) : Color.FromArgb(100, 100, 100),
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Regular),
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter
             };
             btnBetaToggle.FlatAppearance.BorderSize = 1;
-            btnBetaToggle.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70);
+            btnBetaToggle.FlatAppearance.BorderColor = Color.FromArgb(55, 55, 55);
             btnBetaToggle.Click += (_, _) => ToggleUpdateChannel();
             inputPanel.Controls.Add(btnBetaToggle);
 
             // --- Action Buttons ---
             btnFullAuto = CreateActionButton("אוטומציה מלאה", Color.FromArgb(32, 160, 100),
-                Color.FromArgb(40, 190, 120), new Point(270, 350));
+                Color.FromArgb(40, 190, 120), new Point(340, 340));
             btnFullAuto.Click += (_, _) => StartFresh(true);
             inputPanel.Controls.Add(btnFullAuto);
 
             btnSemiAuto = CreateActionButton("חצי אוטומטי", Color.FromArgb(40, 120, 180),
-                Color.FromArgb(60, 140, 200), new Point(50, 350));
+                Color.FromArgb(60, 140, 200), new Point(110, 340));
             btnSemiAuto.Click += (_, _) => StartFresh(false);
             inputPanel.Controls.Add(btnSemiAuto);
 
@@ -298,7 +299,7 @@ namespace WinAutomator
             if (File.Exists(@"C:\WinAutomator_Completed.tag"))
             {
                 var btnJumpQA = CreateActionButton("קפוץ ישירות לבדיקות חומרה", Color.FromArgb(200, 100, 30),
-                    Color.FromArgb(220, 120, 50), new Point(160, 420));
+                    Color.FromArgb(220, 120, 50), new Point(200, 420));
                 btnJumpQA.Click += (_, _) => JumpToQA();
                 inputPanel.Controls.Add(btnJumpQA);
             }
@@ -325,23 +326,16 @@ namespace WinAutomator
         private void ToggleUpdateChannel()
         {
             var config = AppConfig.Current;
-            if (config.Updates.UpdateChannel == "Stable")
-                config.Updates.UpdateChannel = "Beta";
-            else
-                config.Updates.UpdateChannel = "Stable";
-
+            string newChannel = config.Updates.UpdateChannel == "Stable" ? "Beta" : "Stable";
+            config.Updates.UpdateChannel = newChannel;
             config.Save();
-            btnBetaToggle.Text = $"ערוץ עדכונים: {config.Updates.UpdateChannel}";
-            
-            if (config.Updates.UpdateChannel == "Beta")
+
+            // Restart the app so it checks for updates in the new channel
+            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(exePath))
             {
-                btnBetaToggle.ForeColor = Color.FromArgb(255, 120, 0); // Orange for Beta
-                AppendLog("החלפת ערוץ עדכונים ל-Beta. התוכנה תוריד מעתה גרסאות ניסיונית.");
-            }
-            else
-            {
-                btnBetaToggle.ForeColor = Color.LightGray;
-                AppendLog("החלפת ערוץ עדכונים ל-Stable.");
+                System.Diagnostics.Process.Start(exePath);
+                Application.Exit();
             }
         }
 
@@ -396,7 +390,7 @@ namespace WinAutomator
             automationPanel = new Panel
             {
                 Location = new Point(0, 80),
-                Size = new Size(550, 620),
+                Size = new Size(650, 740),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -405,7 +399,7 @@ namespace WinAutomator
             lblManInfo = new Label
             {
                 Location = new Point(10, 5),
-                Size = new Size(510, 22),
+                Size = new Size(620, 22),
                 TextAlign = ContentAlignment.TopCenter,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.Yellow,
@@ -418,7 +412,7 @@ namespace WinAutomator
             {
                 Text = "ממתין לפקודה...",
                 Location = new Point(10, 28),
-                Size = new Size(510, 22),
+                Size = new Size(620, 22),
                 TextAlign = ContentAlignment.TopCenter,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.Cyan
@@ -429,7 +423,7 @@ namespace WinAutomator
             stepperControl = new StepperControl
             {
                 Location = new Point(15, 55),
-                Size = new Size(510, 310),
+                Size = new Size(610, 310),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             automationPanel.Controls.Add(stepperControl);
@@ -451,7 +445,7 @@ namespace WinAutomator
             logPanel = new Panel
             {
                 Location = new Point(15, 402),
-                Size = new Size(510, 200),
+                Size = new Size(610, 250),
                 BackColor = Color.FromArgb(18, 18, 18),
                 BorderStyle = BorderStyle.FixedSingle
             };
