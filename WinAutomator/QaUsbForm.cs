@@ -16,8 +16,10 @@ namespace WinAutomator
 
         private Label lblStatus;
         private Button btnSkip;
-        private bool _detected = false; // prevent double-fire
+        private Button btnFinish;
         private int _initialUsbCount = 0;
+        private int _detectedCount = 0;
+        private readonly object _usbLock = new object();
 
         public QaUsbForm()
         {
@@ -66,6 +68,17 @@ namespace WinAutomator
             btnSkip.Click += (s, e) => { this.DialogResult = DialogResult.Ignore; this.Close(); };
             this.Controls.Add(btnSkip);
 
+            btnFinish = new Button() {
+                Text = "הכל תקין - סיום", Location = new Point(175, 200), Size = new Size(150, 40),
+                BackColor = Color.SeaGreen, ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold), Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnFinish.FlatAppearance.BorderSize = 0;
+            btnFinish.FlatStyle = FlatStyle.Flat;
+            btnFinish.Click += (s, e) => { this.DialogResult = DialogResult.Yes; this.Close(); };
+            this.Controls.Add(btnFinish);
+
             this.Shown += (s, e) => {
                 _initialUsbCount = GetUsbDeviceCount();
             };
@@ -84,16 +97,19 @@ namespace WinAutomator
                 {
                     System.Threading.Tasks.Task.Run(() =>
                     {
-                        int currentCount = GetUsbDeviceCount();
-                        if (currentCount > _initialUsbCount)
+                        lock (_usbLock)
                         {
-                            if (IsHandleCreated && !_detected)
+                            int currentCount = GetUsbDeviceCount();
+                            if (currentCount > _initialUsbCount)
                             {
-                                this.BeginInvoke(new Action(UsbConnected));
+                                if (IsHandleCreated)
+                                {
+                                    this.BeginInvoke(new Action(UsbConnected));
+                                }
                             }
+                            // Always update baseline so unplugging and re-plugging works
+                            _initialUsbCount = currentCount;
                         }
-                        // Always update baseline so unplugging and re-plugging works
-                        _initialUsbCount = currentCount;
                     });
                 }
             }
@@ -113,21 +129,16 @@ namespace WinAutomator
 
         private void UsbConnected()
         {
-            if (_detected) return; // prevent double-fire from both methods
-            _detected = true;
+            _detectedCount++;
 
-            lblStatus.Text = "זוהה התקן USB שחובר בהצלחה! ✓";
+            lblStatus.Text = $"זוהה התקן USB בהצלחה! ✓\nנבדקו כעת: {_detectedCount} שקעים\nניתן להמשיך לבדוק שקעים נוספים או לסיים";
             lblStatus.ForeColor = Color.LimeGreen;
-            btnSkip.Visible = false;
-
-            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer() { Interval = 1500 };
-            t.Tick += (s, e) => {
-                t.Stop();
-                t.Dispose();
-                this.DialogResult = DialogResult.Yes;
-                this.Close();
-            };
-            t.Start();
+            
+            if (!btnFinish.Visible)
+            {
+                btnFinish.Visible = true;
+                btnSkip.Visible = false;
+            }
         }
     }
 }

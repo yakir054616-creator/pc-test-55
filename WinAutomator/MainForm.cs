@@ -33,7 +33,6 @@ namespace WinAutomator
         private ComboBox cmbManufacturer;
         private Button btnFullAuto;
         private Button btnSemiAuto;
-        private Button btnBetaToggle;
 
         // === Automation Controls ===
         private Panel automationPanel;
@@ -104,7 +103,7 @@ namespace WinAutomator
         private void InitializeForm()
         {
             this.Text = "Project Aura - Windows Automator";
-            this.Size = new Size(550, 700);
+            this.Size = new Size(1100, 950);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.None;
             this.MaximizeBox = false;
@@ -139,7 +138,7 @@ namespace WinAutomator
             headerPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 80,
+                Height = 100,
                 BackColor = Color.FromArgb(20, 20, 20),
                 Cursor = Cursors.Default
             };
@@ -157,7 +156,7 @@ namespace WinAutomator
             {
                 Text = "✕",
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                Location = new Point(510, 10),
+                Location = new Point(1060, 10),
                 AutoSize = true,
                 ForeColor = Color.DarkGray,
                 Cursor = Cursors.Hand,
@@ -175,8 +174,8 @@ namespace WinAutomator
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            using Font fontTitle = new Font("Segoe UI", 20, FontStyle.Bold);
-            using Font fontCredit = new Font("Segoe UI", 13, FontStyle.Regular);
+            using Font fontTitle = new Font("Segoe UI", 24, FontStyle.Bold);
+            using Font fontCredit = new Font("Segoe UI", 14, FontStyle.Regular);
 
             SizeF titleSize = e.Graphics.MeasureString("Project Aura", fontTitle);
             float titleX = (headerPanel.Width - titleSize.Width) / 2f;
@@ -195,8 +194,8 @@ namespace WinAutomator
         {
             inputPanel = new Panel
             {
-                Location = new Point(0, 80),
-                Size = new Size(550, 620),
+                Location = new Point(0, 100),
+                Size = new Size(1100, 850),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -207,17 +206,17 @@ namespace WinAutomator
             // --- TableLayoutPanel for input fields ---
             var table = new TableLayoutPanel
             {
-                Location = new Point(30, 40),
-                Size = new Size(490, 220),
+                Location = new Point(250, 80),
+                Size = new Size(700, 260),
                 ColumnCount = 2,
                 RowCount = 4,
                 BackColor = Color.Transparent,
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None
             };
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 480));
             table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             for (int i = 0; i < 4; i++)
-                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
 
             // Row 0: Tech Name
             txtTech = CreateTextBox(fBox);
@@ -257,7 +256,7 @@ namespace WinAutomator
             chkSkipHostname = new CheckBox
             {
                 Text = "דלג על שינוי שם המחשב (מצב בדיקה)",
-                Location = new Point(120, 270),
+                Location = new Point(350, 370),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.FromArgb(255, 170, 0),
@@ -265,32 +264,16 @@ namespace WinAutomator
             };
             inputPanel.Controls.Add(chkSkipHostname);
             
-            // --- Beta Toggle Button ---
-            btnBetaToggle = new Button
-            {
-                Text = $"ערוץ עדכונים: {AppConfig.Current.Updates.UpdateChannel}",
-                Location = new Point(120, 295),
-                Size = new Size(200, 24),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(45, 45, 48),
-                ForeColor = Color.LightGray,
-                Font = new Font("Segoe UI", 9, FontStyle.Regular),
-                Cursor = Cursors.Hand,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            btnBetaToggle.FlatAppearance.BorderSize = 1;
-            btnBetaToggle.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70);
-            btnBetaToggle.Click += (_, _) => ToggleUpdateChannel();
-            inputPanel.Controls.Add(btnBetaToggle);
+            inputPanel.Controls.Add(chkSkipHostname);
 
             // --- Action Buttons ---
             btnFullAuto = CreateActionButton("אוטומציה מלאה", Color.FromArgb(32, 160, 100),
-                Color.FromArgb(40, 190, 120), new Point(270, 350));
+                Color.FromArgb(40, 190, 120), new Point(600, 480));
             btnFullAuto.Click += (_, _) => StartFresh(true);
             inputPanel.Controls.Add(btnFullAuto);
 
             btnSemiAuto = CreateActionButton("חצי אוטומטי", Color.FromArgb(40, 120, 180),
-                Color.FromArgb(60, 140, 200), new Point(50, 350));
+                Color.FromArgb(60, 140, 200), new Point(320, 480));
             btnSemiAuto.Click += (_, _) => StartFresh(false);
             inputPanel.Controls.Add(btnSemiAuto);
 
@@ -298,7 +281,7 @@ namespace WinAutomator
             if (File.Exists(@"C:\WinAutomator_Completed.tag"))
             {
                 var btnJumpQA = CreateActionButton("קפוץ ישירות לבדיקות חומרה", Color.FromArgb(200, 100, 30),
-                    Color.FromArgb(220, 120, 50), new Point(160, 420));
+                    Color.FromArgb(220, 120, 50), new Point(420, 570));
                 btnJumpQA.Click += (_, _) => JumpToQA();
                 inputPanel.Controls.Add(btnJumpQA);
             }
@@ -320,29 +303,6 @@ namespace WinAutomator
             // Phase 3 is index 2
             currentPhase = 3;
             RunCurrentPhase();
-        }
-
-        private void ToggleUpdateChannel()
-        {
-            var config = AppConfig.Current;
-            if (config.Updates.UpdateChannel == "Stable")
-                config.Updates.UpdateChannel = "Beta";
-            else
-                config.Updates.UpdateChannel = "Stable";
-
-            config.Save();
-            btnBetaToggle.Text = $"ערוץ עדכונים: {config.Updates.UpdateChannel}";
-            
-            if (config.Updates.UpdateChannel == "Beta")
-            {
-                btnBetaToggle.ForeColor = Color.FromArgb(255, 120, 0); // Orange for Beta
-                AppendLog("החלפת ערוץ עדכונים ל-Beta. התוכנה תוריד מעתה גרסאות ניסיונית.");
-            }
-            else
-            {
-                btnBetaToggle.ForeColor = Color.LightGray;
-                AppendLog("החלפת ערוץ עדכונים ל-Stable.");
-            }
         }
 
         private static TextBox CreateTextBox(Font f) => new TextBox
@@ -373,8 +333,8 @@ namespace WinAutomator
             {
                 Text = text,
                 Location = location,
-                Width = 200,
-                Height = 48,
+                Width = 250,
+                Height = 55,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = bg,
                 ForeColor = Color.White,
@@ -395,8 +355,8 @@ namespace WinAutomator
         {
             automationPanel = new Panel
             {
-                Location = new Point(0, 80),
-                Size = new Size(550, 620),
+                Location = new Point(0, 100),
+                Size = new Size(1100, 850),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -405,7 +365,7 @@ namespace WinAutomator
             lblManInfo = new Label
             {
                 Location = new Point(10, 5),
-                Size = new Size(510, 22),
+                Size = new Size(1070, 22),
                 TextAlign = ContentAlignment.TopCenter,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.Yellow,
@@ -418,7 +378,7 @@ namespace WinAutomator
             {
                 Text = "ממתין לפקודה...",
                 Location = new Point(10, 28),
-                Size = new Size(510, 22),
+                Size = new Size(1070, 22),
                 TextAlign = ContentAlignment.TopCenter,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.Cyan
@@ -429,7 +389,7 @@ namespace WinAutomator
             stepperControl = new StepperControl
             {
                 Location = new Point(15, 55),
-                Size = new Size(510, 310),
+                Size = new Size(1060, 420),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             automationPanel.Controls.Add(stepperControl);
@@ -438,7 +398,7 @@ namespace WinAutomator
             lblTimer = new Label
             {
                 Text = "⏱ 00:00:00",
-                Location = new Point(30, 370),
+                Location = new Point(30, 490),
                 Size = new Size(200, 28),
                 Font = new Font("Consolas", 14, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 200, 255),
@@ -450,8 +410,8 @@ namespace WinAutomator
             // Log Panel
             logPanel = new Panel
             {
-                Location = new Point(15, 402),
-                Size = new Size(510, 200),
+                Location = new Point(15, 525),
+                Size = new Size(1060, 310),
                 BackColor = Color.FromArgb(18, 18, 18),
                 BorderStyle = BorderStyle.FixedSingle
             };
@@ -709,12 +669,12 @@ namespace WinAutomator
             automationPanel.Visible = false;
 
             // Resize form for results
-            this.Height = 530;
+            this.Height = 750;
 
             Panel resPanel = new Panel
             {
-                Location = new Point(50, 110),
-                Size = new Size(450, 370),
+                Location = new Point(150, 130),
+                Size = new Size(800, 560),
                 BackColor = Color.FromArgb(40, 40, 40),
                 BorderStyle = BorderStyle.FixedSingle
             };
@@ -737,7 +697,7 @@ namespace WinAutomator
                 Label lblName = new Label
                 {
                     Text = names[i],
-                    Location = new Point(300, 40 + i * 35),
+                    Location = new Point(550, 50 + i * 45),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 10)
                 };
@@ -750,7 +710,7 @@ namespace WinAutomator
                 {
                     Text = resTxt,
                     ForeColor = resCol,
-                    Location = new Point(50, 40 + i * 35),
+                    Location = new Point(100, 50 + i * 45),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 10, FontStyle.Bold)
                 };
@@ -762,21 +722,21 @@ namespace WinAutomator
             resPanel.Controls.Add(new Label
             {
                 Text = "בריאות דיסק:",
-                Location = new Point(300, 40 + names.Length * 35),
+                Location = new Point(550, 50 + names.Length * 45),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 10)
             });
             resPanel.Controls.Add(new Label
             {
                 Text = ssd,
-                Location = new Point(30, 40 + names.Length * 35),
-                Width = 250,
+                Location = new Point(60, 50 + names.Length * 45),
+                Width = 400,
                 ForeColor = Color.Cyan,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold)
             });
 
             // Total Time
-            int timeY = 40 + (names.Length + 1) * 35;
+            int timeY = 50 + (names.Length + 1) * 45;
             resPanel.Controls.Add(new Label
             {
                 Text = "⏱ זמן כולל:",
@@ -798,9 +758,9 @@ namespace WinAutomator
             Button btnShowLog = new Button
             {
                 Text = "📋 הצג לוג מלא",
-                Location = new Point(20, 310),
-                Width = 190,
-                Height = 35,
+                Location = new Point(80, 490),
+                Width = 240,
+                Height = 44,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(55, 55, 55),
                 ForeColor = Color.LightGray,
@@ -838,15 +798,36 @@ namespace WinAutomator
             Button btnFinish = new Button
             {
                 Text = "סיום וסגירה",
-                Location = new Point(230, 310),
-                Width = 190,
-                Height = 35,
+                Location = new Point(460, 490),
+                Width = 240,
+                Height = 44,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.SeaGreen,
                 Cursor = Cursors.Hand
             };
-            btnFinish.FlatAppearance.BorderSize = 0;
-            btnFinish.Click += (_, _) => Application.Exit();
+            btnFinish.Click += (_, _) =>
+            {
+                var rData = new ReportData
+                {
+                    TimeStamp = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
+                    TechId = context.TechName,
+                    SerialNum = context.SerialNum,
+                    CpuGen = context.CpuGen,
+                    Manufacturer = context.SelectedManufacturer,
+                    CpuName = AutomationLogic.GetCpuName(),
+                    RamSize = AutomationLogic.GetRamSizeGB() + " GB",
+                    SsdSize = AutomationLogic.GetTotalDiskSizeGB() + " GB",
+                    MicResult = mic,
+                    SpeakerResult = stereo,
+                    CameraResult = cam,
+                    KeyboardResult = kb,
+                    TrackpadResult = tp,
+                    UsbResult = usb
+                };
+                ReportGenerator.GenerateAutomationReport(rData);
+                MessageBox.Show("הדוח הופק בהצלחה ונשמר בשולחן העבודה!", "דוח הופק", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Application.Exit();
+            };
             resPanel.Controls.Add(btnFinish);
 
             this.Controls.Add(resPanel);

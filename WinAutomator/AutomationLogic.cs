@@ -423,10 +423,10 @@ namespace WinAutomator
 
             updateStatus($"מפעיל מנוע דרייברים אוניברסלי ({Path.GetFileName(sdioPath)})... מחפש עדכונים באינטרנט ומתקין.");
             
-            // -checkupdates: download latest online driver index
-            // -autoinstall: automatically install missing/outdated drivers
+            // -autoupdate: automatically download missing driver packs from the internet
+            // -autoinstall: automatically install missing/outdated/better drivers
             // -autoclose: close when done
-            var result = ProcessRunner.RunVisible(sdioPath, "-checkupdates -autoinstall -autoclose", config.Timeouts.WingetTimeoutMs);
+            var result = ProcessRunner.RunVisible(sdioPath, "-autoupdate -autoinstall -autoclose", config.Timeouts.WingetTimeoutMs);
 
             if (result.TimedOut)
                 updateStatus("⚠ מנוע העדכונים האוניברסלי חרג מזמן ההמתנה");

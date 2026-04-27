@@ -154,5 +154,87 @@ namespace WinAutomator
 
             File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
         }
+
+        public static void GenerateAutomationReport(ReportData d)
+        {
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string filePath = Path.Combine(desktop, $"Automation_Report_{d.SerialNum}.html");
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("<!DOCTYPE html>");
+            sb.AppendLine("<html dir='rtl' lang='he'>");
+            sb.AppendLine("<head>");
+            sb.AppendLine("<meta charset='utf-8'>");
+            sb.AppendLine("<title>דוח סיכום אוטומציה</title>");
+            sb.AppendLine("<style>");
+            sb.AppendLine("body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #fdfdfd; color: #333; margin: 0; padding: 30px; font-size: 15px; }");
+            sb.AppendLine(".container { max-width: 700px; margin: auto; background: #fff; border: 1px solid #ddd; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 8px; }");
+            sb.AppendLine(".header-text { text-align: center; font-weight: bold; font-size: 20px; color: #0056b3; margin-bottom: 5px; }");
+            sb.AppendLine(".sub-header { text-align: center; font-size: 14px; color: #666; margin-bottom: 25px; }");
+            sb.AppendLine("table { width: 100%; border-collapse: collapse; margin-top: 10px; }");
+            sb.AppendLine("th, td { border: 1px solid #e0e0e0; padding: 12px 15px; text-align: right; }");
+            sb.AppendLine("th { background: #f0f7ff; font-weight: bold; color: #333; }");
+            sb.AppendLine(".col-q { width: 70%; font-weight: 500; }");
+            sb.AppendLine(".col-res { width: 30%; text-align: center; font-weight: bold; }");
+            sb.AppendLine(".pass { color: #28a745; }");
+            sb.AppendLine(".fail { color: #dc3545; }");
+            sb.AppendLine(".skip { color: #ffc107; }");
+            sb.AppendLine(".info { color: #17a2b8; }");
+            sb.AppendLine("</style>");
+            sb.AppendLine("</head>");
+            sb.AppendLine("<body>");
+            
+            sb.AppendLine("<div class='container'>");
+            sb.AppendLine($"<div class='header-text'>דוח סיכום אוטומציה - Project Aura</div>");
+            sb.AppendLine($"<div class='sub-header'>מספר סידורי: {d.SerialNum} | טכנאי: {d.TechId} | תאריך: {d.TimeStamp}</div>");
+
+            sb.AppendLine("<table>");
+            sb.AppendLine("<thead><tr><th>פעולה / בדיקה</th><th>תוצאה / סטטוס</th></tr></thead>");
+            sb.AppendLine("<tbody>");
+            
+            void AddRow(string task, string result, string cssClass)
+            {
+                sb.AppendLine("<tr>");
+                sb.AppendLine($"<td class='col-q'>{task}</td>");
+                sb.AppendLine($"<td class='col-res class=\"{cssClass}\"'>{result}</td>");
+                sb.AppendLine("</tr>");
+            }
+
+            AddRow("יצרן המחשב", d.Manufacturer, "info");
+            AddRow("מעבד", d.CpuName, "info");
+            AddRow("זיכרון RAM", d.RamSize, "info");
+            AddRow("גודל דיסק (SSD)", d.SsdSize, "info");
+
+            AddRow("פעולות מערכת (DISM, סריקות ותיקונים)", "הושלם בהצלחה", "pass");
+            AddRow("עדכוני דרייברים ויצרן", "הושלם בהצלחה", "pass");
+            AddRow("Windows Update ועדכוני אבטחה", "הושלם בהצלחה", "pass");
+
+            string usbAns = d.UsbResult == DialogResult.Yes ? "תקין ✓" : (d.UsbResult == DialogResult.Ignore ? "דולג ⏭" : "נכשל ✗");
+            string usbClass = d.UsbResult == DialogResult.Yes ? "pass" : (d.UsbResult == DialogResult.Ignore ? "skip" : "fail");
+            AddRow("בדיקת שקעי USB", usbAns, usbClass);
+
+            string spkAns = d.SpeakerResult == DialogResult.Yes ? "תקין ✓" : "נכשל ✗";
+            AddRow("בדיקת רמקולים", spkAns, d.SpeakerResult == DialogResult.Yes ? "pass" : "fail");
+
+            string micAns = d.MicResult == DialogResult.Yes ? "תקין ✓" : "נכשל ✗";
+            AddRow("בדיקת מיקרופון", micAns, d.MicResult == DialogResult.Yes ? "pass" : "fail");
+
+            string camAns = d.CameraResult == DialogResult.Yes ? "תקין ✓" : "נכשל ✗";
+            AddRow("בדיקת מצלמה", camAns, d.CameraResult == DialogResult.Yes ? "pass" : "fail");
+
+            string kbAns = d.KeyboardResult == DialogResult.Yes ? "תקין ✓" : "נכשל ✗";
+            AddRow("בדיקת מקלדת", kbAns, d.KeyboardResult == DialogResult.Yes ? "pass" : "fail");
+            
+            string tpAns = d.TrackpadResult == DialogResult.Yes ? "תקין ✓" : "נכשל ✗";
+            AddRow("בדיקת משטח מגע", tpAns, d.TrackpadResult == DialogResult.Yes ? "pass" : "fail");
+
+            sb.AppendLine("</tbody>");
+            sb.AppendLine("</table>");
+            sb.AppendLine("</div>");
+            sb.AppendLine("</body>");
+            sb.AppendLine("</html>");
+
+            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
     }
 }

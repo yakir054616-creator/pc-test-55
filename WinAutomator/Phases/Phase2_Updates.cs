@@ -73,23 +73,11 @@ namespace WinAutomator.Phases
             onStepChanged(3, StepStatus.Completed);
             await Task.Delay(2000, ct); // השהייה של 2 שניות כדי שהטכנאי יראה את ההודעה
 
-            // Step 4: Universal Driver Fallback (Yellow Bang Check)
+            // Step 4: Universal Driver Fallback (SDIO)
             onStepChanged(4, StepStatus.Running);
-            log("בודק חוסר בדרייברים דרך מנהל ההתקנים (Device Manager)...");
-            bool isMissing = false;
-            await Task.Run(() => { isMissing = AutomationLogic.CheckForMissingDrivers(); }, ct);
-            
-            if (isMissing)
-            {
-                log("זוהו רכיבי חומרה חסרים (Yellow Bangs)! מתחיל תהליך גיבוי אוניברסלי.");
-                await Task.Run(() => AutomationLogic.RunUniversalDriverUpdate(msg => { log(msg); }), ct);
-                onStepChanged(4, StepStatus.Completed);
-            }
-            else
-            {
-                log("מערכת ההפעלה מדווחת כי מנהל ההתקנים תקין לחלוטין (0 שגיאות), דילוג על מנוע אוניברסלי.");
-                onStepChanged(4, StepStatus.Skipped);
-            }
+            log("מריץ עדכוני דרייברים צד שלישי (אוניברסליים) להשלמות מקיפות...");
+            await Task.Run(() => AutomationLogic.RunUniversalDriverUpdate(msg => { log(msg); }), ct);
+            onStepChanged(4, StepStatus.Completed);
 
             // Step 5: Windows Updates (fire & forget)
             onStepChanged(5, StepStatus.Running);
