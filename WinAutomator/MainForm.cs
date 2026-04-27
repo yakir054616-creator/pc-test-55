@@ -138,7 +138,7 @@ namespace WinAutomator
             headerPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 100,
+                Height = 220,
                 BackColor = Color.FromArgb(20, 20, 20),
                 Cursor = Cursors.Default
             };
@@ -166,7 +166,38 @@ namespace WinAutomator
             lblClose.MouseLeave += (_, _) => lblClose.ForeColor = Color.DarkGray;
             lblClose.Click += (_, _) => Application.Exit();
             headerPanel.Controls.Add(lblClose);
+
+            // === Banner Image ===
+            try
+            {
+                var pbBanner = new PictureBox
+                {
+                    Dock = DockStyle.Fill,
+                    Image = LoadImageFromResource("TrumpHeader.jpg"),
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    BackColor = Color.Transparent
+                };
+                pbBanner.MouseDown += (_, e) =>
+                {
+                    if (e.Button == MouseButtons.Left)
+                    {
+                        ReleaseCapture();
+                        SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
+                    }
+                };
+                headerPanel.Controls.Add(pbBanner);
+            }
+            catch { /* Ignore if image fails to load */ }
+
             this.Controls.Add(headerPanel);
+        }
+
+        private Image LoadImageFromResource(string name)
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            string resourceName = "WinAutomator." + name;
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            return stream != null ? Image.FromStream(stream) : null;
         }
 
         private void HeaderPanel_Paint(object sender, PaintEventArgs e)
@@ -174,8 +205,8 @@ namespace WinAutomator
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            using Font fontTitle = new Font("Segoe UI", 24, FontStyle.Bold);
-            using Font fontCredit = new Font("Segoe UI", 14, FontStyle.Regular);
+            using Font fontTitle = new Font("Segoe UI", 18, FontStyle.Bold);
+            using Font fontCredit = new Font("Segoe UI", 11, FontStyle.Regular);
 
             SizeF titleSize = e.Graphics.MeasureString("Project Aura", fontTitle);
             float titleX = (headerPanel.Width - titleSize.Width) / 2f;
@@ -194,14 +225,14 @@ namespace WinAutomator
         {
             inputPanel = new Panel
             {
-                Location = new Point(0, 100),
-                Size = new Size(1100, 850),
+                Location = new Point(0, 220),
+                Size = new Size(1100, 730),
                 BackColor = Color.Transparent,
                 Visible = false
             };
 
-            Font fLabel = new Font("Segoe UI", 11, FontStyle.Bold);
-            Font fBox = new Font("Segoe UI", 11);
+            Font fLabel = new Font("Segoe UI", 10, FontStyle.Bold);
+            Font fBox = new Font("Segoe UI", 10);
 
             // --- TableLayoutPanel for input fields ---
             var table = new TableLayoutPanel
@@ -216,7 +247,7 @@ namespace WinAutomator
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 480));
             table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             for (int i = 0; i < 4; i++)
-                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+                table.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
 
             // Row 0: Tech Name
             txtTech = CreateTextBox(fBox);
@@ -338,7 +369,7 @@ namespace WinAutomator
                 FlatStyle = FlatStyle.Flat,
                 BackColor = bg,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 0;
@@ -355,8 +386,8 @@ namespace WinAutomator
         {
             automationPanel = new Panel
             {
-                Location = new Point(0, 100),
-                Size = new Size(1100, 850),
+                Location = new Point(0, 220),
+                Size = new Size(1100, 730),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -389,7 +420,7 @@ namespace WinAutomator
             stepperControl = new StepperControl
             {
                 Location = new Point(15, 55),
-                Size = new Size(1060, 420),
+                Size = new Size(1060, 360),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             automationPanel.Controls.Add(stepperControl);
@@ -398,7 +429,7 @@ namespace WinAutomator
             lblTimer = new Label
             {
                 Text = "⏱ 00:00:00",
-                Location = new Point(30, 490),
+                Location = new Point(30, 420),
                 Size = new Size(200, 28),
                 Font = new Font("Consolas", 14, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 200, 255),
@@ -410,8 +441,8 @@ namespace WinAutomator
             // Log Panel
             logPanel = new Panel
             {
-                Location = new Point(15, 525),
-                Size = new Size(1060, 310),
+                Location = new Point(15, 455),
+                Size = new Size(1060, 260),
                 BackColor = Color.FromArgb(18, 18, 18),
                 BorderStyle = BorderStyle.FixedSingle
             };
@@ -421,7 +452,7 @@ namespace WinAutomator
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(18, 18, 18),
                 ForeColor = Color.FromArgb(180, 220, 180),
-                Font = new Font("Consolas", 9),
+                Font = new Font("Consolas", 8),
                 ReadOnly = true,
                 BorderStyle = BorderStyle.None,
                 ScrollBars = RichTextBoxScrollBars.Vertical,

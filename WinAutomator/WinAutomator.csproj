@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="SpeakerTest.mp3" />
+    <EmbeddedResource Include="TrumpHeader.jpg" />
   </ItemGroup>
 
 </Project>
